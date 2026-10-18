@@ -9,7 +9,7 @@ export async function createRegistration(input) {
     p_phone: input.phone || null,
   })
   if (error) {
-    const code = error.code === '23505' || error.message?.includes('DUPLICATE_REGISTRATION') ? 'DUPLICATE' : error.message?.includes('CAPACITY') ? 'CAPACITY' : error.message?.includes('SESSION_WORKSHOP_MISMATCH') ? 'MISMATCH' : error.message?.includes('SESSION_NOT_FOUND') || error.message?.includes('WORKSHOP_NOT_FOUND') ? 'NOT_FOUND' : null
+    const code = error.code === '23505' || error.message?.includes('DUPLICATE_REGISTRATION') ? 'DUPLICATE' : error.message?.includes('CAPACITY') ? 'CAPACITY' : error.message?.includes('SESSION_WORKSHOP_MISMATCH') ? 'MISMATCH' : error.message?.includes('SESSION_EXPIRED') ? 'SESSION_EXPIRED' : error.message?.includes('SESSION_NOT_FOUND') || error.message?.includes('WORKSHOP_NOT_FOUND') ? 'NOT_FOUND' : null
     const e = new Error(code || 'Registration could not be saved')
     e.code = code || 'DATABASE_ERROR'
     throw e

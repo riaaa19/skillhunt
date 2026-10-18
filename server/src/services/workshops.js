@@ -2,30 +2,65 @@ import { getSupabase } from '../lib/supabase.js'
 
 const select = `
   id,title,slug,description,category,location,price,image_url,is_featured,is_published,created_at,updated_at,
-  instructor:instructors(id,slug,name,bio,specialty,image_url),
+  instructor:instructors(id,name,bio,specialty,image_url),
   sessions:workshop_sessions(id,starts_at,ends_at,capacity)
 `
 
+const PICSUM_WORKSHOPS = {
+  'watercolour-for-beginners': 'https://picsum.photos/seed/watercolor/900/700',
+  'paint-your-own-world': 'https://picsum.photos/seed/painting/900/700',
+  'pottery-basics': 'https://picsum.photos/seed/pottery/900/900',
+  'clay-and-coffee': 'https://picsum.photos/seed/glaze/900/650',
+  'everyday-photo-stories': 'https://picsum.photos/seed/streetphoto/900/650',
+  'photography-walk': 'https://picsum.photos/seed/darkroom/800/800',
+  'creative-paper-crafts': 'https://picsum.photos/seed/journal/800/800',
+  'make-something-handmade': 'https://picsum.photos/seed/croissant/900/700',
+}
+
+const PICSUM_INSTRUCTORS = {
+  'Maya Shah': 'https://picsum.photos/seed/meera/500/600',
+  'Aarav Mehta': 'https://picsum.photos/seed/arjun/500/600',
+  'Ira Kapoor': 'https://picsum.photos/seed/zoya/500/600',
+  'Neha Desai': 'https://picsum.photos/seed/tara/500/600',
+}
+
+function resolveImage(url, slug, fallbackSeed, w = 900, h = 700) {
+  if (!url || url.includes('placehold.co')) {
+    return PICSUM_WORKSHOPS[slug] || `https://picsum.photos/seed/${fallbackSeed || slug || 'craft'}/${w}/${h}`
+  }
+  return url
+}
+
+function resolveInstructorImage(url, name, fallbackSeed) {
+  if (!url || url.includes('placehold.co')) {
+    return PICSUM_INSTRUCTORS[name] || `https://picsum.photos/seed/${fallbackSeed || name || 'art'}/500/600`
+  }
+  return url
+}
+
 function toDto(row) {
   const instructor = row.instructor
+  const photo = resolveImage(row.image_url, row.slug, row.category)
+  const insPhoto = instructor ? resolveInstructorImage(instructor.image_url, instructor.name, instructor.name) : null
   return {
     id: row.id,
     title: row.title,
     slug: row.slug,
     description: row.description,
     category: row.category,
-    instructorId: instructor?.slug || instructor?.id,
+    instructorId: instructor?.id || row.instructor_id,
     instructor: instructor ? {
       id: instructor.id,
       name: instructor.name,
       bio: instructor.bio,
       specialty: instructor.specialty,
-      photo: instructor.image_url,
+      photo: insPhoto,
     } : null,
     location: row.location,
     price: Number(row.price),
-    photo: row.image_url,
+    photo,
     isFeatured: row.is_featured,
+    keywords: [row.category, row.location, row.title].filter(Boolean),
     sessions: (row.sessions || []).map((s) => ({
       id: s.id,
       date: s.starts_at.slice(0, 10),
@@ -51,8 +86,9 @@ export async function listWorkshops(filters = {}) {
   query = applyFilters(query, filters)
   if (filters.instructor || filters.search) {
     const instructorQuery = supabase.from('instructors').select('id')
-    const escaped = (filters.search || '').replace(/[%(),]/g, ' ')
-    const instructorFilter = filters.instructor ? `id.eq.${filters.instructor},slug.eq.${filters.instructor}` : `name.ilike.%${escaped}%,specialty.ilike.%${escaped}%`
+    const escaped = (filters.search || filters.instructor || '').replace(/[%(),]/g, ' ')
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filters.instructor)
+    const instructorFilter = filters.instructor ? (isUuid ? `id.eq.${filters.instructor}` : `name.ilike.%${escaped}%`) : `name.ilike.%${escaped}%,specialty.ilike.%${escaped}%`
     const { data: instructors, error } = await instructorQuery.or(instructorFilter)
     if (error) throw error
     if (filters.instructor) {
@@ -96,9 +132,9 @@ export async function listCategories() {
 }
 
 export async function listInstructors() {
-  const { data, error } = await getSupabase().from('instructors').select('id,slug,name,bio,specialty,image_url,workshops:workshops!instructor_id(id,title,category,location,price,image_url,is_featured,sessions:workshop_sessions(id,starts_at,ends_at))').eq('workshops.is_published', true).order('name')
+  const { data, error } = await getSupabase().from('instructors').select('id,name,bio,specialty,image_url,workshops:workshops!instructor_id(id,title,category,location,price,image_url,is_featured,sessions:workshop_sessions(id,starts_at,ends_at))').eq('workshops.is_published', true).order('name')
   if (error) throw error
-  return (data || []).map((i) => ({ ...i, photo: i.image_url, workshops: (i.workshops || []).map((w) => ({ ...w, photo: w.image_url })) }))
+  return (data || []).map((i) => ({ ...i, photo: resolveInstructorImage(i.image_url, i.name, i.name), workshops: (i.workshops || []).map((w) => ({ ...w, photo: resolveImage(w.image_url, w.slug, w.category) })) }))
 }
 
 export async function listCalendar({ startDate, endDate } = {}) {

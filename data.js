@@ -5,12 +5,16 @@ const img = (s, w = 800, h = 600) => `https://picsum.photos/seed/${s}/${w}/${h}`
 
 export const CATEGORIES = {
   'Art & Painting': { color: '#F5B9CA', emoji: '🎨' },
+  'Pottery & Ceramics': { color: '#D3E4B1', emoji: '🏺' },
   Pottery: { color: '#D3E4B1', emoji: '🏺' },
   Photography: { color: '#B7E0E5', emoji: '📷' },
+  'Crafts & Making': { color: '#E7D9F5', emoji: '✂️' },
   Crafts: { color: '#E7D9F5', emoji: '✂️' },
   'Food & Baking': { color: '#FFF0BD', emoji: '🥐' },
   Movement: { color: '#F5B9CA', emoji: '💃' },
 }
+
+export const getCategory = (cat) => CATEGORIES[cat] || { color: '#E7D9F5', emoji: '✦' }
 
 export const INSTRUCTORS = [
   { id: 'i1', name: 'Meera Kulkarni', specialty: 'Watercolour & ink', bio: 'Paints tiny cities in big colours. Believes every beginner already has a style.', note: 'always bring a spare brush!', photo: img('meera', 500, 600), color: '#F5B9CA' },
@@ -37,14 +41,59 @@ export const WORKSHOPS = [
 export const LOCATIONS = [...new Set(WORKSHOPS.map((w) => w.location))]
 export const instructorById = (id) => INSTRUCTORS.find((i) => i.id === id)
 export const sessionsOf = (w) => w.sessions.map((s) => ({ ...s, workshopId: w.id }))
-export const nextSession = (w) => [...w.sessions].sort((a, b) => a.date.localeCompare(b.date))[0]
+export const nextSession = (w) => (w?.sessions?.length ? [...w.sessions].sort((a, b) => a.date.localeCompare(b.date))[0] : { id: '', date: '2026-10-21', time: '10:00 – 12:00' })
 export const ALL_SESSIONS = WORKSHOPS.flatMap(sessionsOf).sort((a, b) => a.date.localeCompare(b.date))
 
+export const PICSUM_WORKSHOPS = {
+  'watercolour-for-beginners': 'https://picsum.photos/seed/watercolor/900/700',
+  'paint-your-own-world': 'https://picsum.photos/seed/painting/900/700',
+  'pottery-basics': 'https://picsum.photos/seed/pottery/900/900',
+  'clay-and-coffee': 'https://picsum.photos/seed/glaze/900/650',
+  'everyday-photo-stories': 'https://picsum.photos/seed/streetphoto/900/650',
+  'photography-walk': 'https://picsum.photos/seed/darkroom/800/800',
+  'creative-paper-crafts': 'https://picsum.photos/seed/journal/800/800',
+  'make-something-handmade': 'https://picsum.photos/seed/croissant/900/700',
+}
+
+export const PICSUM_INSTRUCTORS = {
+  'Maya Shah': 'https://picsum.photos/seed/meera/500/600',
+  'Aarav Mehta': 'https://picsum.photos/seed/arjun/500/600',
+  'Ira Kapoor': 'https://picsum.photos/seed/zoya/500/600',
+  'Neha Desai': 'https://picsum.photos/seed/tara/500/600',
+}
+
+export const resolveWorkshopPhoto = (w) => {
+  if (!w) return 'https://picsum.photos/seed/craft/900/700'
+  const url = w.photo || w.imageUrl || w.image_url
+  if (!url || url.includes('placehold.co')) {
+    return PICSUM_WORKSHOPS[w.slug] || PICSUM_WORKSHOPS[w.title?.toLowerCase().replace(/\s+/g, '-')] || `https://picsum.photos/seed/${encodeURIComponent(w.slug || w.title || 'workshop')}/900/700`
+  }
+  return url
+}
+
+export const resolveInstructorPhoto = (ins) => {
+  if (!ins) return 'https://picsum.photos/seed/artist/500/600'
+  const url = ins.photo || ins.imageUrl || ins.image_url
+  if (!url || url.includes('placehold.co')) {
+    return PICSUM_INSTRUCTORS[ins.name] || `https://picsum.photos/seed/${encodeURIComponent(ins.name || ins.id || 'instructor')}/500/600`
+  }
+  return url
+}
+
+const API_URL = import.meta.env.VITE_API_URL || ''
 export const loadWorkshops = async () => {
-  const res = await fetch('/api/workshops?limit=100')
+  const res = await fetch(`${API_URL}/api/workshops?limit=100`)
   if (!res.ok) throw new Error('Unable to load workshops')
   const body = await res.json()
-  return body.data?.items || []
+  const items = body.data?.items || []
+  return items.map((w) => ({
+    ...w,
+    photo: resolveWorkshopPhoto(w),
+    instructor: w.instructor ? {
+      ...w.instructor,
+      photo: resolveInstructorPhoto(w.instructor),
+    } : null,
+  }))
 }
 
 export const fmtDate = (iso, opts = { weekday: 'short', day: 'numeric', month: 'short' }) =>

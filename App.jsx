@@ -1,26 +1,52 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
   CATEGORIES, INSTRUCTORS, WORKSHOPS, LOCATIONS, loadWorkshops, instructorById,
-  nextSession, fmtDate, fmtPrice,
+  nextSession, fmtDate, fmtPrice, resolveWorkshopPhoto, resolveInstructorPhoto,
 } from './data.js'
  
 /* ---------- helpers ---------- */
-const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const reduced = () => typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false
 const catColor = (c) => CATEGORIES[c]?.color || '#E7D9F5'
 const PAPER = ['#F5B9CA', '#D3E4B1', '#B7E0E5', '#E7D9F5', '#FFF0BD']
 const pick = (i) => PAPER[i % PAPER.length]
 const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 const EMPTY = { q: '', cat: 'All', loc: '', ins: '', maxPrice: 0, from: '', to: '' }
  
+const getIns = (w) => {
+  if (w?.instructor && (w.instructor.name || w.instructor.id)) {
+    return {
+      id: w.instructor.id,
+      name: w.instructor.name,
+      bio: w.instructor.bio || '',
+      specialty: w.instructor.specialty || '',
+      photo: resolveInstructorPhoto(w.instructor),
+      color: w.instructor.color || '#D3E4B1',
+      note: w.instructor.note || w.instructor.specialty || '',
+    }
+  }
+  const fromStatic = instructorById(w?.instructorId)
+  if (fromStatic) return { ...fromStatic, photo: resolveInstructorPhoto(fromStatic) }
+  return {
+    id: w?.instructorId || '',
+    name: 'Instructor',
+    bio: '',
+    specialty: '',
+    photo: resolveInstructorPhoto(w),
+    color: '#D3E4B1',
+    note: '',
+  }
+}
+
 const matches = (w, f) => {
-  const ins = instructorById(w.instructorId)
+  const ins = getIns(w)
   const q = f.q.trim().toLowerCase()
-  if (q && ![w.title, w.category, ins.name, w.location, w.description, ...w.keywords].join(' ').toLowerCase().includes(q)) return false
+  const kw = w.keywords || []
+  if (q && ![w.title, w.category, ins.name, w.location, w.description, ...kw].join(' ').toLowerCase().includes(q)) return false
   if (f.cat !== 'All' && w.category !== f.cat) return false
   if (f.loc && w.location !== f.loc) return false
-  if (f.ins && w.instructorId !== f.ins) return false
+  if (f.ins && w.instructorId !== f.ins && ins.id !== f.ins) return false
   if (f.maxPrice && w.price > f.maxPrice) return false
-  if ((f.from || f.to) && !w.sessions.some((s) => (!f.from || s.date >= f.from) && (!f.to || s.date <= f.to))) return false
+  if ((f.from || f.to) && !(w.sessions || []).some((s) => (!f.from || s.date >= f.from) && (!f.to || s.date <= f.to))) return false
   return true
 }
  
@@ -53,7 +79,7 @@ const Arrow = ({ style, flip }) => (
     <path className="draw" pathLength="1" style={{ '--dl': '2.6s' }} d={flip ? 'M12 28 L 12 40 L 24 38' : 'M96 24 L 109 39 L 91 42'} fill="none" stroke="#292525" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
-const Chip = ({ cat }) => <span className="catchip" style={{ background: catColor(cat) }}>{CATEGORIES[cat]?.emoji} {cat}</span>
+const Chip = ({ cat }) => <span className="catchip" style={{ background: catColor(cat) }}>{CATEGORIES[cat]?.emoji || '✦'} {cat}</span>
  
 /* ---------- App ---------- */
 export default function App() {
@@ -323,7 +349,8 @@ function Featured({ workshops, open, reg }) {
           <div className="fhead"><h2 className="h2">featured this season.</h2><p className="sub">Keep scrolling. Each page folds away to reveal the next.</p></div>
           <div className="pgstage">
             {items.map((w, i) => {
-              const s = nextSession(w), ins = instructorById(w.instructorId)
+              const s = nextSession(w) || w.sessions?.[0] || { date: '2026-10-21', time: '10:00 – 12:00' }
+              const ins = getIns(w)
               return (
                 <Wavy key={w.id} v={(i % 3) + 1} bg={pick(i + 1)} className="pg" innerRef={(el) => (pages.current[i] = el)} style={{ zIndex: n - i }}
                   aria-label={`Featured workshop ${i + 1} of ${n}: ${w.title}`}>
@@ -338,10 +365,10 @@ function Featured({ workshops, open, reg }) {
                     </div>
                   </div>
                   <div className="pgcol">
-                    <Wavy v={((i + 1) % 3) + 1} bg="#fff" className="pgmain"><img src={w.photo} alt={w.title} loading={i ? 'lazy' : undefined} width="900" height="700" />
+                    <Wavy v={((i + 1) % 3) + 1} bg="#fff" className="pgmain"><img src={resolveWorkshopPhoto(w)} alt={w.title} loading={i ? 'lazy' : undefined} width="900" height="700" />
                       <Tape c={pick(i + 3)} r={i % 2 ? 6 : -6} style={{ top: -12, left: '36%' }} /></Wavy>
-                    <Wavy v={((i + 2) % 3) + 1} bg={ins.color} className="pgsub"><img src={ins.photo} alt="" loading="lazy" width="500" height="600" /></Wavy>
-                    <Sticker style={{ right: '2%', top: '-2%' }}>{CATEGORIES[w.category].emoji}</Sticker>
+                    <Wavy v={((i + 2) % 3) + 1} bg={ins.color || '#D3E4B1'} className="pgsub"><img src={resolveInstructorPhoto(ins)} alt="" loading="lazy" width="500" height="600" /></Wavy>
+                    <Sticker style={{ right: '2%', top: '-2%' }}>{CATEGORIES[w.category]?.emoji || '✦'}</Sticker>
                     <Note style={{ position: 'absolute', right: '4%', bottom: '2%' }} r={i % 2 ? 5 : -5}>{NOTES[i]}</Note>
                   </div>
                 </Wavy>
@@ -364,13 +391,25 @@ function Featured({ workshops, open, reg }) {
 function Field({ label, children, v = 1 }) {
   return <Wavy as="label" v={v} className="field"><span>{label}</span>{children}</Wavy>
 }
-function FilterFields({ f, set }) {
+function FilterFields({ f, set, workshops = [] }) {
   const u = (k) => (e) => set({ ...f, [k]: k === 'maxPrice' ? Number(e.target.value) : e.target.value })
+  const locs = useMemo(() => {
+    const list = [...new Set(workshops.map((w) => w.location).filter(Boolean))]
+    return list.length ? list : LOCATIONS
+  }, [workshops])
+  const inss = useMemo(() => {
+    const map = new Map()
+    for (const w of workshops) {
+      const ins = getIns(w)
+      if (ins?.id && !map.has(ins.id)) map.set(ins.id, ins)
+    }
+    return map.size ? Array.from(map.values()) : INSTRUCTORS
+  }, [workshops])
   return (
     <>
-      <Field label="Location" v={1}><select value={f.loc} onChange={u('loc')}><option value="">Anywhere</option>{LOCATIONS.map((l) => <option key={l}>{l}</option>)}</select></Field>
+      <Field label="Location" v={1}><select value={f.loc} onChange={u('loc')}><option value="">Anywhere</option>{locs.map((l) => <option key={l}>{l}</option>)}</select></Field>
       <Field label="Price" v={2}><select value={f.maxPrice} onChange={u('maxPrice')}><option value={0}>Any price</option>{[1000, 1500, 2000].map((p) => <option key={p} value={p}>Up to {fmtPrice(p)}</option>)}</select></Field>
-      <Field label="Instructor" v={3}><select value={f.ins} onChange={u('ins')}><option value="">Anyone</option>{INSTRUCTORS.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}</select></Field>
+      <Field label="Instructor" v={3}><select value={f.ins} onChange={u('ins')}><option value="">Anyone</option>{inss.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}</select></Field>
       <Field label="Type" v={1}><select value={f.cat} onChange={u('cat')}><option value="All">All types</option>{Object.keys(CATEGORIES).map((c) => <option key={c}>{c}</option>)}</select></Field>
     </>
   )
@@ -382,7 +421,7 @@ function Catalogue({ workshops, status, load, filters: f, setFilters, sort, setS
   const set = setFilters
   const list = useMemo(() => {
     const r = workshops.filter((w) => matches(w, f))
-    const key = (w) => nextSession(w).date
+    const key = (w) => (nextSession(w) || w.sessions?.[0] || { date: '9999-99-99' }).date
     return r.sort((a, b) => sort === 'low' ? a.price - b.price : sort === 'high' ? b.price - a.price : key(a).localeCompare(key(b)))
   }, [workshops, f, sort])
   const active = JSON.stringify(f) !== JSON.stringify(EMPTY)
@@ -404,7 +443,7 @@ function Catalogue({ workshops, status, load, filters: f, setFilters, sort, setS
       </div>
       {adv && (
         <Wavy id="adv" v={1} bg="#E7D9F5" className="advpanel">
-          <FilterFields f={f} set={set} />
+          <FilterFields f={f} set={set} workshops={workshops} />
           <Field label="From" v={2}><input type="date" value={f.from} onChange={(e) => set({ ...f, from: e.target.value })} /></Field>
           <Field label="To" v={3}><input type="date" value={f.to} min={f.from} onChange={(e) => set({ ...f, to: e.target.value })} /></Field>
         </Wavy>
@@ -417,10 +456,11 @@ function Catalogue({ workshops, status, load, filters: f, setFilters, sort, setS
       {status === 'ok' && list.length > 0 && (
         <div className="grid">
           {list.map((w, i) => {
-            const s = nextSession(w), ins = instructorById(w.instructorId)
+            const s = nextSession(w) || w.sessions?.[0] || { date: '2026-10-21', time: '10:00 – 12:00' }
+            const ins = getIns(w)
             return (
               <Wavy key={w.id} v={(i % 3) + 1} bg={pick(i)} className="wcard" style={{ '--r': `${[-1.2, 0.8, -0.5, 1.4][i % 4]}deg` }}>
-                <img src={w.photo} alt="" loading="lazy" width="900" height="700" />
+                <img src={resolveWorkshopPhoto(w)} alt="" loading="lazy" width="900" height="700" />
                 <div className="wbody"><Chip cat={w.category} /><h3>{w.title}</h3>
                   <p className="meta">{ins.name} · {w.location}<br />Next: {fmtDate(s.date)}, {s.time}</p>
                   <div className="frow"><strong>{fmtPrice(w.price)}</strong><button className="btn small crimson" onClick={() => open(w)}>Details</button></div></div>
@@ -437,14 +477,28 @@ function Catalogue({ workshops, status, load, filters: f, setFilters, sort, setS
 function Instructors({ workshops, open, onAll }) {
   const [sel, setSel] = useState(null)
   const close = useCallback(() => setSel(null), [])
+  const list = useMemo(() => {
+    const map = new Map()
+    for (const w of workshops) {
+      const ins = getIns(w)
+      if (ins.id && !map.has(ins.id) && ins.name !== 'Instructor') {
+        map.set(ins.id, {
+          ...ins,
+          color: ins.color || pick(map.size),
+          note: ins.note || ins.specialty || 'Maker & Mentor',
+        })
+      }
+    }
+    return map.size ? Array.from(map.values()) : INSTRUCTORS
+  }, [workshops])
   return (
     <Section id="instructors">
       <h2 className="h2">the people behind the magic.</h2>
-      <p className="sub">Illustrative sample profiles. Real instructors will replace them.</p>
+      <p className="sub">Meet the artists, craftspeople and makers leading our sessions.</p>
       <div className="igrid">
-        {INSTRUCTORS.map((p, i) => (
-          <Wavy key={p.id} v={(i % 3) + 1} bg={p.color} className="icard" style={{ '--r': `${[-1.5, 1, -0.6][i % 3]}deg` }}>
-            <Wavy v={((i + 1) % 3) + 1} bg="#fff" className="portrait"><img src={p.photo} alt={`Portrait of ${p.name} (sample)`} loading="lazy" width="500" height="600" /></Wavy>
+        {list.map((p, i) => (
+          <Wavy key={p.id} v={(i % 3) + 1} bg={p.color || pick(i)} className="icard" style={{ '--r': `${[-1.5, 1, -0.6][i % 3]}deg` }}>
+            <Wavy v={((i + 1) % 3) + 1} bg="#fff" className="portrait"><img src={resolveInstructorPhoto(p)} alt={`Portrait of ${p.name}`} loading="lazy" width="500" height="600" /></Wavy>
             <h3>{p.name}</h3><p className="spec">{p.specialty}</p>
             <Note r={i % 2 ? 3 : -3}>{p.note}</Note>
             <button className="btn small" style={{ '--bg': '#fff' }} aria-haspopup="dialog" onClick={() => setSel(p)}>View profile</button>
@@ -459,12 +513,12 @@ function Instructors({ workshops, open, onAll }) {
 function InstructorModal({ p, workshops, onClose, onWorkshop, onAll }) {
   const ref = useRef(null)
   useDialog(ref, onClose)
-  const mine = workshops.filter((w) => w.instructorId === p.id)
+  const mine = workshops.filter((w) => w.instructorId === p.id || w.instructor?.id === p.id)
   return (
     <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <Wavy v={3} bg={p.color} className="modal imodal" role="dialog" aria-modal="true" aria-labelledby="it" innerRef={ref}>
+      <Wavy v={3} bg={p.color || '#D3E4B1'} className="modal imodal" role="dialog" aria-modal="true" aria-labelledby="it" innerRef={ref}>
         <button className="btn small closebtn" aria-label="Close" onClick={onClose}>✕</button>
-        <Wavy v={1} bg="#fff" className="portrait"><img src={p.photo} alt={`Portrait of ${p.name} (sample)`} width="500" height="600" /></Wavy>
+        <Wavy v={1} bg="#fff" className="portrait"><img src={resolveInstructorPhoto(p)} alt={`Portrait of ${p.name}`} width="500" height="600" /></Wavy>
         <div className="mbody">
           <h2 id="it" className="mtitle">{p.name}</h2>
           <p className="spec">{p.specialty}</p>
@@ -507,7 +561,7 @@ function CalendarSection({ workshops, open }) {
           <div className="toggle" role="group" aria-label="Calendar view">
             {[['month', 'Month'], ['list', 'Upcoming']].map(([k, l]) => <button key={k} aria-pressed={view === k} className={`btn small ${view === k ? 'on' : ''}`} style={{ '--bg': '#B7E0E5' }} onClick={() => setView(k)}>{l}</button>)}</div>
         </div>
-        <div className="calfilters"><FilterFields f={f} set={setF} />
+        <div className="calfilters"><FilterFields f={f} set={setF} workshops={workshops} />
           {JSON.stringify(f) !== JSON.stringify(EMPTY) && <button className="linkbtn" onClick={() => setF(EMPTY)}>Clear</button>}</div>
         {view === 'month' ? (
           <div className="calbody">
@@ -659,9 +713,9 @@ function useDialog(ref, onClose) {
 function WorkshopModal({ workshop: w, sessionId, onClose, onRegister, onInstructor }) {
   const [sid, setSid] = useState(sessionId)
   const ref = useRef(null)
-  const ins = instructorById(w.instructorId)
+  const ins = getIns(w)
   useDialog(ref, onClose)
-  const s = w.sessions.find((x) => x.id === sid) || w.sessions[0]
+  const s = w.sessions.find((x) => x.id === sid) || w.sessions[0] || { id: '', date: '2026-10-21', time: '10:00 – 12:00' }
   return (
     <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <Wavy v={2} bg="#FFF8ED" className="modal" role="dialog" aria-modal="true" aria-labelledby="mt" innerRef={ref}>
@@ -674,11 +728,11 @@ function ModalInner({ w, ins, s, setSid, onClose, onRegister, onInstructor }) {
   return (
     <>
       <button className="btn small closebtn" aria-label="Close" onClick={onClose}>✕</button>
-      <Wavy v={3} bg={catColor(w.category)} className="mimg"><img src={w.photo} alt={w.title} width="900" height="700" /></Wavy>
+      <Wavy v={3} bg={catColor(w.category)} className="mimg"><img src={resolveWorkshopPhoto(w)} alt={w.title} width="900" height="700" /></Wavy>
       <div className="mbody">
         <Chip cat={w.category} /><h2 id="mt" className="mtitle">{w.title}</h2>
         <p>{w.description}</p>
-        <Wavy v={1} bg={ins.color} className="mins"><img src={ins.photo} alt="" width="60" height="72" /><div><strong>{ins.name}</strong><br /><span className="meta">{ins.specialty}</span><br />
+        <Wavy v={1} bg={ins.color || '#D3E4B1'} className="mins"><img src={resolveInstructorPhoto(ins)} alt="" width="60" height="72" /><div><strong>{ins.name}</strong><br /><span className="meta">{ins.specialty}</span><br />
           <button className="linkbtn" onClick={() => onInstructor(ins.id)}>More from {ins.name.split(' ')[0]}</button></div></Wavy>
         <Field label="Session" v={2}><select value={s.id} onChange={(e) => setSid(e.target.value)}>{w.sessions.map((x) => <option key={x.id} value={x.id}>{fmtDate(x.date)} · {x.time}</option>)}</select></Field>
         <p className="meta">{fmtDate(s.date, { weekday: 'long', day: 'numeric', month: 'long' })}, {s.time}<br />{w.location}</p>
