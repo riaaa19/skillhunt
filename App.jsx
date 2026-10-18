@@ -301,7 +301,10 @@ function Hero({ go }) {
 /* ---------- Featured: pinned stack of scrapbook pages that flip up and away on scroll ---------- */
 const NOTES = ['beginner friendly!', 'bring a friend', 'limited seats', 'new this season']
 function Featured({ workshops, open, reg }) {
-  const items = useMemo(() => workshops.filter((w) => w.isFeatured).slice(0, 4), [workshops])
+  const items = useMemo(() => {
+    const feat = workshops.filter((w) => w.isFeatured)
+    return (feat.length ? feat : workshops).slice(0, 4)
+  }, [workshops])
   const n = items.length
   const rm = useMemo(() => reduced(), [])
   const track = useRef(null), pages = useRef([]), last = useRef(0)
