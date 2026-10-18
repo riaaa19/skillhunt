@@ -32,8 +32,8 @@ export const registrationBody = z.object({
   participant_name: z.string().trim().min(2).max(120),
   email: z.string().trim().toLowerCase().email().max(254),
   phone: z.string().trim().max(30).optional().or(z.literal('')),
-  workshop_id: uuid,
-  session_id: uuid,
+  workshop_id: z.string().trim().min(1).max(120),
+  session_id: z.string().trim().min(1).max(120),
 })
 
 export const registrationId = z.object({ id: uuid })
