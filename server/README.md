@@ -18,6 +18,27 @@ npm run dev:server
 
 The Vite frontend remains available with `npm run dev`; its `/api` requests are proxied to port 4000.
 
+## Deploy to Vercel
+
+Import the repository into Vercel with the project root set to the repository root. The included `vercel.json` builds the Vite frontend and exposes the Express API as a serverless function at `/api`.
+
+Add these Vercel project environment variables for **Production** (and Preview if needed):
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `FRONTEND_URL` — your Vercel URL, such as `https://skillhunt.vercel.app`
+
+`PORT` is not required on Vercel. Run `server/sql/schema.sql` in Supabase and run `npm run seed` once locally with the same Supabase credentials before deploying.
+
+After deployment, verify:
+
+```text
+https://your-domain.vercel.app/api/health
+https://your-domain.vercel.app/api/workshops
+```
+
+Never add `server/.env` or a Supabase service-role key to GitHub or Vercel source files. Configure secrets only in Vercel Project Settings → Environment Variables.
+
 ## Endpoints
 
 - `GET /api/health`
