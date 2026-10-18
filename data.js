@@ -40,8 +40,12 @@ export const sessionsOf = (w) => w.sessions.map((s) => ({ ...s, workshopId: w.id
 export const nextSession = (w) => [...w.sessions].sort((a, b) => a.date.localeCompare(b.date))[0]
 export const ALL_SESSIONS = WORKSHOPS.flatMap(sessionsOf).sort((a, b) => a.date.localeCompare(b.date))
 
-// Data layer. Swap the body for fetch('/api/workshops') when the backend exists.
-export const loadWorkshops = () => Promise.resolve(WORKSHOPS)
+export const loadWorkshops = async () => {
+  const res = await fetch('/api/workshops?limit=100')
+  if (!res.ok) throw new Error('Unable to load workshops')
+  const body = await res.json()
+  return body.data?.items || []
+}
 
 export const fmtDate = (iso, opts = { weekday: 'short', day: 'numeric', month: 'short' }) =>
   new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', opts)

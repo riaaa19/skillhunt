@@ -275,7 +275,7 @@ function Hero({ go }) {
 /* ---------- Featured: pinned stack of scrapbook pages that flip up and away on scroll ---------- */
 const NOTES = ['beginner friendly!', 'bring a friend', 'limited seats', 'new this season']
 function Featured({ workshops, open, reg }) {
-  const items = useMemo(() => ['w2', 'w1', 'w3', 'w5'].map((id) => workshops.find((w) => w.id === id)).filter(Boolean), [workshops])
+  const items = useMemo(() => workshops.filter((w) => w.isFeatured).slice(0, 4), [workshops])
   const n = items.length
   const rm = useMemo(() => reduced(), [])
   const track = useRef(null), pages = useRef([]), last = useRef(0)
@@ -581,11 +581,11 @@ function Register({ workshops, prefill }) {
     const e = validate(); setErr(e); if (Object.keys(e).length) return
     setState('loading'); setMsg('')
     try {
-      const res = await fetch(`${API}/api/registrations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...v, name: v.name.trim(), email: v.email.trim().toLowerCase() }) })
+      const res = await fetch(`${API}/api/registrations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ participant_name: v.name.trim(), email: v.email.trim().toLowerCase(), phone: v.phone.trim(), workshop_id: v.workshopId, session_id: v.sessionId }) })
       const data = await res.json().catch(() => ({}))
-      if (res.status === 422 && data.errors) { setErr(data.errors); setState('idle'); return }
-      if (res.status === 409) { setState('error'); setMsg('You\'re already registered for this session.'); return }
-      if (!res.ok || !data.id) throw new Error('not saved')
+      if (res.status === 400 && data.error?.fields) { setErr(Object.fromEntries(Object.entries(data.error.fields).map(([k, x]) => [k === 'participant_name' ? 'name' : k === 'workshop_id' ? 'workshopId' : k === 'session_id' ? 'sessionId' : k, x?.[0]]))); setState('idle'); return }
+      if (res.status === 409) { setState('error'); setMsg(data.error?.code === 'CAPACITY' ? 'This session is full.' : data.error?.code === 'SESSION_EXPIRED' ? 'This session has already ended.' : 'You\'re already registered for this session.'); return }
+      if (!res.ok || !data.data?.id) throw new Error('not saved')
       setState('success'); setV(blank)
     } catch {
       setState('error'); setMsg('We couldn\'t save your registration, so nothing was booked. Please try again in a moment.')
