@@ -7,8 +7,8 @@ import { errorHandler, notFound } from './middleware/error.js'
 
 export function createApp() {
   const app = express()
-  const frontend = process.env.FRONTEND_URL || 'http://localhost:5173'
-  app.use(cors({ origin: frontend }))
+  const frontend = process.env.FRONTEND_URL
+  app.use(cors(frontend ? { origin: frontend } : {}))
   app.use(express.json({ limit: '32kb' }))
   app.get('/api/health', async (req, res) => {
     try {

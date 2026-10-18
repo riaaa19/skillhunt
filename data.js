@@ -82,17 +82,27 @@ export const resolveInstructorPhoto = (ins) => {
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 export const loadWorkshops = async () => {
-  const res = await fetch(`${API_URL}/api/workshops?limit=100`)
-  if (!res.ok) throw new Error('Unable to load workshops')
-  const body = await res.json()
-  const items = body.data?.items || []
-  return items.map((w) => ({
+  try {
+    const res = await fetch(`${API_URL}/api/workshops?limit=100`)
+    if (!res.ok) throw new Error('Unable to load workshops')
+    const body = await res.json()
+    const items = body.data?.items || []
+    if (items.length) {
+      return items.map((w) => ({
+        ...w,
+        photo: resolveWorkshopPhoto(w),
+        instructor: w.instructor ? {
+          ...w.instructor,
+          photo: resolveInstructorPhoto(w.instructor),
+        } : null,
+      }))
+    }
+  } catch (err) {
+    console.warn('API unavailable, using fallback data:', err)
+  }
+  return WORKSHOPS.map((w) => ({
     ...w,
     photo: resolveWorkshopPhoto(w),
-    instructor: w.instructor ? {
-      ...w.instructor,
-      photo: resolveInstructorPhoto(w.instructor),
-    } : null,
   }))
 }
 
